@@ -1,0 +1,2 @@
+bad_pomegranate
+good_pomegranate

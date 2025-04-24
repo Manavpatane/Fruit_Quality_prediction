@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fruit & Veggie Quality Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f4f4f4;
+            color: #222;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        body.dark-mode {
+            background-color: #121212;
+            color: #eee;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .model-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+            background-color: white;
+        }
+
+        body.dark-mode .model-card {
+            background-color: #1e1e1e;
+            box-shadow: 0 4px 10px rgba(255,255,255,0.1);
+        }
+
+        .model-card:hover {
+            transform: scale(1.05);
+        }
+
+        .model-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .overlay {
+            position: absolute;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        .dark-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        .spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 80px;
+            height: 80px;
+            border: 10px solid rgba(0,0,0,0.1);
+            border-top: 10px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            transform: translate(-50%, -50%);
+            z-index: 1001;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Select a Model</h1>
+
+    <!-- Dark Mode Toggle -->
+    <div class="dark-toggle" onclick="toggleDarkMode()"><i class="fas fa-moon"></i></div>
+
+    <!-- Spinner -->
+    <div class="spinner" id="spinner"></div>
+
+    <div class="model-grid">
+        {% for model in models %}
+        <div>
+            <form action="{{ url_for('predict', model_name=model) }}" onsubmit="showSpinner()">
+                <div class="model-card">
+                    <button type="submit">
+                        <img src="{{ url_for('static', filename='images/' + model + '.jpg') }}" alt="{{ model }}" class="model-image">
+                        <div class="overlay">
+                            {% if model == 'apple' %}<strong>Apple</strong><br> An apple a day keeps the doctor away...
+                            {% elif model == 'banana' %}<strong>Banana</strong><br> Nature’s energy bar...
+                            {% elif model == 'carrot' %}<strong>Carrot</strong><br> Crunchy and great for your eyes...
+                            {% elif model == 'orange' %}<strong>Orange</strong><br> A citrus-packed immunity booster...
+                            {% elif model == 'potato' %}<strong>Potato</strong><br> A global staple food...
+                            {% elif model == 'tomato' %}<strong>Tomato</strong><br> Technically a fruit...
+                            {% elif model == 'guava' %}<strong>Guava</strong><br> Tropical powerhouse fruit...
+                            {% elif model == 'lime' %}<strong>Lime</strong><br> Zesty and refreshing...
+                            {% elif model == 'pomegranate' %}<strong>Pomegranate</strong><br> Ruby-red superfruit...
+                            {% endif %}
+                        </div>
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        // Spinner Logic
+        function showSpinner() {
+            document.getElementById("spinner").style.display = "block";
+        }
+
+        // Dark Mode
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+        }
+
+        // Voice Assistant
+        let recognitionStarted = false;
+        let greetingSpoken = false;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.lang = "en-US";
+
+            recognition.onstart = function () {
+                if (!greetingSpoken) {
+                    const msg = new SpeechSynthesisUtterance("Voice assistant is active. Say open prediction for apple.");
+                    speechSynthesis.speak(msg);
+                    greetingSpoken = true;
+                }
+            };
+
+            recognition.onresult = function (event) {
+                const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+                console.log("Heard:", transcript);
+
+                if (transcript.includes("open prediction for") || transcript.includes("start prediction for")) {
+                    const fruit = transcript.split("for")[1]?.trim();
+                    if (fruit) {
+                        showSpinner();
+                        window.location.href = `/predict/${fruit}`;
+                    }
+                }
+
+                if (transcript.includes("back to home")) {
+                    window.location.href = "/";
+                }
+
+                if (transcript.includes("dark mode")) {
+                    toggleDarkMode();
+                }
+            };
+
+            recognition.onerror = function (event) {
+                console.error("Speech recognition error:", event.error);
+                setTimeout(() => recognition.start(), 1000);
+            };
+
+            recognition.onend = function () {
+                recognition.start();
+            };
+
+            function startRecognition() {
+                if (!recognitionStarted) {
+                    recognitionStarted = true;
+                    recognition.start();
+                }
+            }
+
+            startRecognition();
+        } else {
+            alert("Your browser does not support voice recognition. Use Chrome or Edge.");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ model.capitalize() }} Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f4f8;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.dark-mode {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .predict-container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .predict-box {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            transition: background 0.3s, color 0.3s;
+        }
+        body.dark-mode .predict-box {
+            background: #1e1e1e;
+            color: #e0e0e0;
+        }
+        .capture-btn, .predict-button, .back-link, .toggle-dark {
+            margin: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            background: #0066cc;
+            color: white;
+            transition: background 0.3s ease;
+        }
+        .capture-btn:hover, .predict-button:hover, .back-link:hover, .toggle-dark:hover {
+            background: #004999;
+        }
+        .image-preview {
+            width: 250px;
+            margin-top: 15px;
+            border-radius: 12px;
+        }
+        .result-box {
+            margin-top: 20px;
+            animation: fadeIn 1s ease;
+        }
+        @keyframes fadeIn {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+        #spinner {
+            display: none;
+            margin-top: 10px;
+        }
+        .chatbot-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="predict-container">
+        <h2>{{ model.capitalize() }} Quality Detection</h2>
+
+        <button class="toggle-dark" onclick="toggleDarkMode()">🌙 Toggle Dark Mode</button>
+
+        <div class="predict-box">
+            <form method="post" enctype="multipart/form-data" id="predict-form">
+                <label class="upload-label">Upload Image:</label><br>
+                <input type="file" name="image" accept="image/*" onchange="previewImage(event)"><br>
+
+                <p>Or use your webcam:</p>
+                <video id="video" width="300" autoplay></video><br>
+
+                <div class="webcam-controls">
+                    <button type="button" class="capture-btn" onclick="startWebcam()">Start Webcam</button>
+                    <button type="button" class="capture-btn stop-btn" onclick="stopWebcam()">Stop Webcam</button>
+                    <button type="button" class="capture-btn" onclick="capture()">Capture from Webcam</button>
+                </div>
+
+                <canvas id="canvas" width="300" height="225" style="display:none;"></canvas>
+                <input type="hidden" name="webcam_image" id="webcam_image">
+
+                <div id="spinner">🔄 Predicting...</div>
+                <button type="submit" class="predict-button" onclick="showSpinner()">Predict</button>
+            </form>
+
+            {% if prediction %}
+                <div class="result-box">
+                    <h3>Result: {{ prediction }}</h3>
+                    <p>Confidence: {{ confidence|round(2) }}%</p>
+
+                    {% if image_path %}
+                        <img src="{{ url_for('static', filename='uploads/' + image_path) }}" class="image-preview">
+                    {% endif %}
+                </div>
+
+                <script>
+                    const resultSpeech = new SpeechSynthesisUtterance("The result is {{ prediction }} with {{ confidence|round(0) }} percent confidence.");
+                    speechSynthesis.speak(resultSpeech);
+                </script>
+            {% endif %}
+        </div>
+
+        <a href="{{ url_for('index') }}" class="back-link">← Back to Home</a>
+    </div>
+
+    <!-- Floating Chatbot (Placeholder) -->
+    <button class="chatbot-btn" onclick="speak('How can I help you today? You can say things like start webcam, capture, predict, or go back to home.')">💬</button>
+
+    <!-- Webcam & Voice Assistant Script -->
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const webcamInput = document.getElementById('webcam_image');
+        const resultBox = document.querySelector('.result-box');
+        let streamRef = null;
+        const synth = window.speechSynthesis;
+
+        function speak(message) {
+            const utterance = new SpeechSynthesisUtterance(message);
+            synth.speak(utterance);
+        }
+
+        function toggleDarkMode() {
+            document.body.classList.toggle("dark-mode");
+        }
+
+        function showSpinner() {
+            document.getElementById("spinner").style.display = "block";
+        }
+
+        function startWebcam() {
+            if (!streamRef) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        streamRef = stream;
+                        video.srcObject = stream;
+                        speak("Webcam started");
+                    })
+                    .catch(err => {
+                        alert("Unable to access webcam.");
+                        speak("Unable to access webcam.");
+                    });
+            }
+        }
+
+        function stopWebcam() {
+            if (streamRef) {
+                streamRef.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                streamRef = null;
+                speak("Webcam stopped");
+            }
+        }
+
+        function capture() {
+            if (streamRef) {
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg');
+                webcamInput.value = dataUrl;
+
+                // Display the captured image
+                const preview = document.createElement('img');
+                preview.src = dataUrl;
+                preview.classList.add('image-preview');
+
+                const oldPreview = document.querySelector('.image-preview');
+                if (oldPreview) oldPreview.remove();
+
+                canvas.style.display = 'block';
+                canvas.after(preview);
+
+                speak("Image captured");
+            }
+        }
+
+        // Voice Assistant
+        let recognitionStarted = false;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.lang = "en-US";
+
+            recognition.onresult = event => {
+                const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+                console.log("Voice Command:", transcript);
+
+                if (transcript.includes("start webcam")) startWebcam();
+                else if (transcript.includes("stop webcam")) stopWebcam();
+                else if (transcript.includes("capture")) capture();
+                else if (transcript.includes("predict")) {
+                    speak("Predicting now.");
+                    document.getElementById("predict-form").submit();
+                }
+                else if (transcript.includes("go back to home")) window.location.href = "/";
+            };
+
+            recognition.onerror = event => {
+                console.error("Speech recognition error:", event.error);
+                setTimeout(() => recognition.start(), 1000);
+            };
+
+            recognition.onend = () => recognition.start();
+
+            function startRecognition() {
+                if (!recognitionStarted) {
+                    recognitionStarted = true;
+                    recognition.start();
+                    speak("Voice assistant activated. You can say start webcam, capture, predict, or go back to home.");
+                }
+            }
+
+            startRecognition();
+        } else {
+            alert("Speech recognition not supported. Try using Chrome.");
+        }
+    </script>
+</body>
+</html>
